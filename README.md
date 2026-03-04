@@ -2,7 +2,7 @@
 
 **5 tiers of OCR compared side-by-side** — from Tesseract to Gemini 3 Flash.
 
-Companion repo for ["The Definitive Guide to OCR in 2026"](link-to-blog).
+Companion repo for ["The Definitive Guide to OCR in 2026: From Pipelines to VLMs"](https://slavadubrov.github.io/blog/2026/03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/).
 
 ## What's Inside
 
@@ -55,7 +55,7 @@ Each tier has different requirements. The notebook skips any engine that isn't a
 
 ## Related
 
-- 📖 [The Definitive Guide to OCR in 2025–2026](link-to-blog)
+- 📖 [The Definitive Guide to OCR in 2026: From Pipelines to VLMs](https://slavadubrov.github.io/blog/2026/03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/)
 - 🏟️ [OCR Arena](https://ocrarena.ai) — independent crowd-sourced rankings
 - 🔧 Built with [uv](https://docs.astral.sh/uv/)
 
