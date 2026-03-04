@@ -1,0 +1,14 @@
+# Downloaded samples — never commit dataset content
+data/samples/*.png
+data/samples/*.txt
+data/samples/manifest.json
+
+# Keep the directory itself
+!data/samples/.gitkeep
+
+# Standard Python
+__pycache__/
+*.egg-info/
+.venv/
+dist/
+.env
