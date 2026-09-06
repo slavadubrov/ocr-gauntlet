@@ -1,33 +1,26 @@
 [project]
 name = "ocr-gauntlet"
-version = "0.1.0"
-description = "5 tiers of OCR compared: from Tesseract to Gemini 3 Flash"
+version = "0.2.0"
+description = "Reproducible OCR pipeline comparisons with explicit evaluation contracts"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Slava Dubrov" }]
-
-dependencies = [
-    "Pillow>=10.0",
-    "numpy>=1.24",
-    "pandas>=2.0",
-    "matplotlib>=3.7",
-    "seaborn>=0.12",
-    "tqdm>=4.65",
-    "rich>=13.0",
-    "editdistance>=0.8",
-    "jiwer>=3.0",           # WER computation
-    "datasets>=2.14",       # HuggingFace datasets for sample downloads
-]
+dependencies = ["Pillow>=11", "editdistance>=0.8"]
 
 [project.optional-dependencies]
-tesseract = ["pytesseract>=0.3.10"]
-docling = ["docling>=2.70"]
-gemini = ["google-generativeai>=0.8.0"]
-mistral = ["mistralai>=1.0.0"]
-dots-ocr = ["openai>=1.0"]    # dots.ocr client; vLLM server installed separately (needs GPU + Python <=3.13)
-notebooks = ["jupyter>=1.0", "ipywidgets>=8.0"]
-all = ["ocr-gauntlet[tesseract,docling,gemini,mistral,dots-ocr,notebooks]"]
+tesseract = ["pytesseract>=0.3.13"]
+docling = ["docling>=2.70,<3"]
+paddle = ["paddleocr>=3.0,<4"] # Install the platform-specific PaddlePaddle runtime separately.
+gemini = ["google-genai>=1.65,<2"]
+mistral = ["mistralai>=1.0,<3"]
+dots-ocr = ["openai>=1.0,<3"]
+datasets = ["datasets>=4,<5"]
+notebooks = ["jupyter>=1", "pandas>=2", "matplotlib>=3.7", "seaborn>=0.12"]
+all = ["ocr-gauntlet[tesseract,docling,gemini,mistral,dots-ocr,notebooks,datasets]"]
+
+[project.scripts]
+ocr-gauntlet = "ocr_gauntlet.benchmark:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -37,4 +30,14 @@ build-backend = "hatchling.build"
 packages = ["src/ocr_gauntlet"]
 
 [dependency-groups]
-dev = ["pytest>=7.0", "ruff>=0.4"]
+dev = ["pytest>=9", "ruff>=0.15"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.uv]
+# Paddle transitive chardet 7 triggers Requests 2.x compatibility warnings.
+constraint-dependencies = ["chardet<6"]
