@@ -1,149 +1,107 @@
-"""
-Download 5 sample documents from HuggingFace for the OCR Gauntlet demo.
+"""Explicit public dataset import. No models or hosted OCR calls.
 
-Usage:
-    python scripts/download_samples.py
-
-Or called automatically by the notebook on first run.
-
-Datasets used (all publicly available for research):
-    - nielsr/funsd          — scanned forms (from RVL-CDIP / tobacco docs)
-    - Teklia/IAM-line       — handwritten English text lines
-    - naver-clova-ix/cord-v2 — scanned receipts (CORD dataset)
-    - nielsr/funsd          — additional form samples for layout variety
-
-These datasets are downloaded by the user at runtime. We do NOT redistribute
-any dataset content in this repository. Users are responsible for complying
-with each dataset's license terms.
+CORD references use valid_line words, never gt_parse keys. Imported gold is
+unreviewed: check annotation coverage/reading order against each image before
+setting reviewed=true in the manifest. IAM's source terms still apply even if
+its mirror advertises a different license.
 """
 
-from __future__ import annotations
-
+import argparse
 import json
 from pathlib import Path
-from datasets import load_dataset
 
-SAMPLES_DIR = Path(__file__).parent.parent / "data" / "samples"
+from ocr_gauntlet.utils import sha256
+
+DATASETS = {
+    "cord": {
+        "repo": "naver-clova-ix/cord-v2",
+        "revision": "7f0115a4b758a71d6473b8d085751692da2fef98",
+        "license": "CC-BY-4.0 (mirror metadata); see source terms",
+        "license_url": "https://github.com/clovaai/cord",
+        "protocol": "CORD valid_line annotation order; may omit unannotated visible text",
+    },
+    "iam": {
+        "repo": "Teklia/IAM-line",
+        "revision": "fbdad97500ce54635c0d1ba306bf535cb40656cf",
+        "license": "IAM original research terms; mirror MIT does not relicense underlying images",
+        "license_url": "https://fki.tic.heia-fr.ch/databases/iam-handwriting-database",
+        "protocol": "IAM line transcription, test split; not full-page OCR",
+    },
+}
 
 
-def download_samples(force: bool = False) -> Path:
-    """Download 5 sample images + ground truth to data/samples/.
-
-    Returns the samples directory path.
-    Skips download if samples already exist (unless force=True).
-    """
-    SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
-
-    manifest_path = SAMPLES_DIR / "manifest.json"
-    if manifest_path.exists() and not force:
-        print(f"✅ Samples already downloaded at {SAMPLES_DIR}")
-        return SAMPLES_DIR
-
-    manifest = {}
-
-    # ── Sample 1: Clean form (FUNSD — clean, printed, structured) ──
-    print("📥 Downloading FUNSD form...")
-    funsd = load_dataset("nielsr/funsd", split="test")
-    # Pick a sample with moderate text density
-    sample = funsd[0]
-    img = sample["image"]
-    # Extract ground truth: concatenate all word-level text annotations
-    words = sample["words"]
-    gt_text = " ".join(words)
-
-    img.save(SAMPLES_DIR / "01_printed_form.png")
-    (SAMPLES_DIR / "01_printed_form.txt").write_text(gt_text, encoding="utf-8")
-    manifest["01_printed_form"] = {
-        "source": "nielsr/funsd (test split, index 0)",
-        "license": "Non-commercial research only",
-        "description": "Scanned printed form — clean, structured layout",
+def reference_for(kind: str, row: dict) -> dict:
+    if kind == "iam":
+        return {"text": row["text"], "output_format": "text"}
+    gt = json.loads(row["ground_truth"])
+    lines = gt.get("valid_line")
+    if not lines:
+        raise ValueError(
+            "CORD sample has no visible-text annotations; semantic fields are not transcription gold"
+        )
+    return {
+        "text": "\n".join(" ".join(w["text"] for w in line["words"]) for line in lines),
+        "output_format": "text",
+        "fields": gt.get("gt_parse", {}),
+        "annotated_lines": lines,
     }
 
-    # ── Sample 2: Receipt (CORD — scanned receipts) ──
-    print("📥 Downloading CORD receipt...")
-    cord = load_dataset("naver-clova-ix/cord-v2", split="test")
-    # Pick a receipt with visible content
-    sample = cord[5]
-    img = sample["image"]
-    gt_json = json.loads(sample["ground_truth"])
-    # Flatten the parsed fields into plain text
-    gt_parts = []
-    for menu_item in gt_json.get("gt_parse", {}).get("menu", [{}]):
-        if isinstance(menu_item, dict):
-            for k, v in menu_item.items():
-                if v:
-                    gt_parts.append(f"{k}: {v}")
-    for section in ("sub_total", "total"):
-        sec_data = gt_json.get("gt_parse", {}).get(section, {})
-        if isinstance(sec_data, dict):
-            for k, v in sec_data.items():
-                if v:
-                    gt_parts.append(f"{k}: {v}")
-    gt_text = "\n".join(gt_parts) if gt_parts else str(gt_json.get("gt_parse", ""))
 
-    img.save(SAMPLES_DIR / "02_receipt.png")
-    (SAMPLES_DIR / "02_receipt.txt").write_text(gt_text, encoding="utf-8")
-    manifest["02_receipt"] = {
-        "source": "naver-clova-ix/cord-v2 (test split, index 5)",
-        "license": "CORD dataset — research use",
-        "description": "Scanned receipt — real-world OCR challenge",
-    }
+def download_samples(kind: str, output: Path, count: int = 5, start: int = 0) -> Path:
+    from datasets import load_dataset
 
-    # ── Sample 3: Handwritten text (IAM) ──
-    print("📥 Downloading IAM handwriting...")
-    iam = load_dataset("Teklia/IAM-line", split="test")
-    # Pick a line with moderate handwriting complexity
-    sample = iam[10]
-    img = sample["image"]
-    gt_text = sample["text"]
-
-    img.save(SAMPLES_DIR / "03_handwritten.png")
-    (SAMPLES_DIR / "03_handwritten.txt").write_text(gt_text, encoding="utf-8")
-    manifest["03_handwritten"] = {
-        "source": "Teklia/IAM-line (test split, index 10)",
-        "license": "Non-commercial research only (IAM Handwriting Database)",
-        "description": "Handwritten English text line",
-    }
-
-    # ── Sample 4: Dense form (FUNSD — different form with more content) ──
-    print("📥 Downloading dense form sample...")
-    sample = funsd[5]  # pick a denser form
-    img = sample["image"]
-    words = sample["words"]
-    gt_text = " ".join(words)
-
-    img.save(SAMPLES_DIR / "04_dense_form.png")
-    (SAMPLES_DIR / "04_dense_form.txt").write_text(gt_text, encoding="utf-8")
-    manifest["04_dense_form"] = {
-        "source": "nielsr/funsd (test split, index 5)",
-        "license": "Non-commercial research only",
-        "description": "Dense scanned form — more text content and layout complexity",
-    }
-
-    # ── Sample 5: Second handwritten sample or different FUNSD form ──
-    print("📥 Downloading second form sample...")
-    sample = funsd[10]  # different form
-    img = sample["image"]
-    words = sample["words"]
-    gt_text = " ".join(words)
-
-    img.save(SAMPLES_DIR / "05_noisy_form.png")
-    (SAMPLES_DIR / "05_noisy_form.txt").write_text(gt_text, encoding="utf-8")
-    manifest["05_noisy_form"] = {
-        "source": "nielsr/funsd (test split, index 10)",
-        "license": "Non-commercial research only",
-        "description": "Noisier scanned form — degraded scan quality",
-    }
-
-    # ── Save manifest ──
-    (SAMPLES_DIR / "manifest.json").write_text(
-        json.dumps(manifest, indent=2), encoding="utf-8"
+    if count < 1 or start < 0:
+        raise ValueError("count must be positive and start nonnegative")
+    config = DATASETS[kind]
+    # Exclusive directory avoids silently overwriting reviewed references or partial imports.
+    output.mkdir(parents=True, exist_ok=False)
+    dataset = load_dataset(
+        config["repo"], revision=config["revision"], split="test", streaming=True
     )
-
-    print(f"\n✅ Downloaded {len(manifest)} samples to {SAMPLES_DIR}")
-    print("📋 Sources and licenses saved to manifest.json")
-    return SAMPLES_DIR
+    samples = []
+    for index, row in enumerate(dataset.skip(start).take(count), start):
+        name = f"{kind}-test-{index:05}"
+        image_path, ref_path = output / f"{name}.png", output / f"{name}.json"
+        image = row["image"].convert("RGB")
+        image.save(image_path)
+        ref_path.write_text(
+            json.dumps(reference_for(kind, row), ensure_ascii=False, indent=2)
+        )
+        samples.append(
+            {
+                "id": name,
+                "image": image_path.name,
+                "reference": ref_path.name,
+                "image_sha256": sha256(image_path),
+                "reference_sha256": sha256(ref_path),
+                "dataset": config["repo"],
+                "revision": config["revision"],
+                "split": "test",
+                "index": index,
+                "source_id": str(row.get("id", index)),
+                "license": config["license"],
+                "license_url": config["license_url"],
+                "protocol": config["protocol"],
+                "reviewed": False,
+                "preprocessing": "decode source image, convert RGB, lossless PNG; no resize",
+                "width": image.width,
+                "height": image.height,
+            }
+        )
+    if len(samples) != count:
+        raise ValueError(
+            f"Requested {count} records, found {len(samples)}; partial directory retained without manifest"
+        )
+    path = output / "manifest.json"
+    path.write_text(json.dumps({"schema_version": 1, "samples": samples}, indent=2))
+    return path
 
 
 if __name__ == "__main__":
-    download_samples()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dataset", choices=DATASETS, default="cord")
+    parser.add_argument("--output", type=Path, default=Path("data/cord"))
+    parser.add_argument("--count", type=int, default=5)
+    parser.add_argument("--start", type=int, default=0)
+    args = parser.parse_args()
+    print(download_samples(args.dataset, args.output, args.count, args.start))

@@ -1,78 +1,137 @@
-# 🥊 OCR Gauntlet
+# OCR Gauntlet
 
-**5 tiers of OCR compared side-by-side** — from Tesseract to Gemini 3 Flash.
+Compare OCR **pipelines and their output contracts** on the same reviewed inputs.
+Tesseract, PaddleOCR, Docling with Tesseract/EasyOCR/Granite, dots.ocr,
+Mistral OCR and Gemini are optional adapters. Failures remain in the results.
 
-Companion repo for ["The Definitive Guide to OCR in 2026: From Pipelines to VLMs"](https://slavadubrov.github.io/blog/2026/03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/).
+Companion to [OCR in 2026](https://slavadubrov.com/blog/2026/03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/).
+This is an instructional evaluation project, not a validated model leaderboard.
 
-## What's Inside
+## Start locally
 
-| Notebook | Shows |
-|----------|-------|
-| `01_gauntlet.ipynb` | 5 OCR engines on the same documents — CER/WER/speed/cost |
-| `02_docling_deep_dive.ipynb` | Docling for structured conversion (tables→DataFrames, RAG-ready markdown) |
-| `03_cost_calculator.ipynb` | Cost analysis at 1K–10M pages/month |
+Use Python 3.12 (selected by `.python-version`) and [uv](https://docs.astral.sh/uv/).
 
-## Quick Start
+```sh
+uv sync --locked --extra tesseract --extra notebooks
+# macOS: brew install tesseract; Debian/Ubuntu: apt install tesseract-ocr
+uv run python scripts/make_fixture.py data/demo
+uv run ocr-gauntlet data/demo/manifest.json --engines tesseract --output results/demo.jsonl
+uv run jupyter notebook notebooks/01_gauntlet.ipynb
+```
 
-    git clone https://github.com/slavadubrov/ocr-gauntlet
-    cd ocr-gauntlet
+The generated pages are original **synthetic wiring checks**. They do not measure
+real-document OCR quality. Existing datasets/results are never overwritten; choose
+a new output directory/file for a new run. API keys are not needed for this path.
 
-    # Minimal (Tesseract only — any machine, no GPU, no API keys)
-    uv sync --extra tesseract --extra notebooks
-    uv run python scripts/download_samples.py   # downloads 5 samples from HuggingFace
-    uv run jupyter notebook notebooks/01_gauntlet.ipynb
+```sh
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+```
 
-    # Full gauntlet (all 5 tiers)
-    uv sync --extra all
-    uv run python scripts/download_samples.py
-    cp .env.example .env   # add your API keys
-    uv run jupyter notebook notebooks/01_gauntlet.ipynb
+## Real documents
 
-The notebook auto-downloads samples on first run if you skip the manual step.
-It also runs whatever engines are available and skips the rest.
+The importer pins dataset commits and records sample IDs, split, preprocessing,
+licenses and image/reference hashes. It does not run OCR or upload documents.
 
-## Engine Setup
+```sh
+uv sync --locked --extra datasets --extra tesseract
+uv run python scripts/download_samples.py --dataset cord --count 2 --output data/cord
+# Reproduce the visually reviewed receipt region used during implementation:
+uv run python scripts/prepare_reviewed_cord.py data/cord/manifest.json data/cord-region
+uv run ocr-gauntlet data/cord-region/manifest.json --engines tesseract --output results/cord.jsonl
+```
 
-Each tier has different requirements. The notebook skips any engine that isn't available.
+Use `--count` and `--start` for a larger deterministic slice. General imports are
+**unreviewed** and remain unscored until their visible text, coverage and order have
+been checked. CORD semantic annotations live in `fields`, never in text gold.
+The prepared region is a one-region integration example, not the official CORD
+protocol. [Evaluation and dataset choices](docs/evaluation.md) explains expansion,
+IAM restrictions, OmniDocBench and reference review.
 
-| Tier | What you need |
-|------|---------------|
-| 1 — Tesseract | `brew install tesseract` (or `apt install tesseract-ocr`) + `uv sync --extra tesseract` |
-| 2 — Docling | `uv sync --extra docling` (+ Tesseract system dep) |
-| 3 — dots.ocr | GPU with ~4GB VRAM + Python <=3.13. Run the vLLM server separately: `uvx --python 3.13 --from vllm vllm serve rednote-hilab/dots.ocr --trust-remote-code`. Then `uv sync --extra dots-ocr` for the client. |
-| 4 — Mistral OCR | `MISTRAL_API_KEY` in `.env` + `uv sync --extra mistral` |
-| 5 — Gemini Flash | `GEMINI_API_KEY` in `.env` + `uv sync --extra gemini` |
+## Select a pipeline
 
-## The 5 Tiers
+| Engine argument | Extra / runtime | Output |
+|---|---|---|
+| `tesseract` | `tesseract` + system Tesseract/language files | Text |
+| `paddle` | `paddle` + platform-specific PaddlePaddle | Text + native boxes/scores |
+| `docling-tesseract` | `docling` + system Tesseract | Markdown + Docling JSON/tables |
+| `docling-easyocr` | `docling` + EasyOCR runtime | Markdown + Docling JSON/tables |
+| `docling-granite` | `docling`; pinned Granite-Docling weights | Markdown + Docling JSON/tables |
+| `dots-ocr` | `dots-ocr`; separately deployed model server | Text-prompt experiment + raw response |
+| `mistral` | `mistral`; `MISTRAL_API_KEY` | Markdown + raw page response |
+| `gemini` | `gemini`; `GEMINI_API_KEY` | Text + usage/finish metadata |
 
-| Tier | Engine | Type | GPU? | Cost | OCR Arena ELO |
-|------|--------|------|------|------|---------------|
-| 1 | Tesseract | Traditional | No | Free | — |
-| 2 | Docling + Tesseract | Framework | No | Free | — |
-| 3 | dots.ocr (1.7B) | Lightweight VLM | ~4GB | Free | 1382 |
-| 4 | Mistral OCR v3 | Dedicated OCR API | No | $2/1K pages | 1460 |
-| 5 | Gemini 3 Flash | Frontier VLM | No | ~$0.8/1K pages | 1770 |
+Install only the extras you run, e.g. `uv sync --locked --extra tesseract --extra
+paddle --extra docling`. For PaddlePaddle follow the [official installation
+instructions](https://www.paddleocr.ai/latest/en/quick_start.html); its runtime is
+platform-specific. The tested CPU runtime is PaddlePaddle 3.3.1 on macOS ARM64. Local
+PaddleOCR/Docling runs can download weights on first use. The default Paddle
+candidate is the explicitly selected **PP-OCRv5** baseline, not an implied latest
+pipeline; change `ocr_version` only as a new experiment. Do not equate PaddleOCR
+recognition with the separate PaddleOCR-VL document parsing pipeline.
 
-## Related
+```sh
+uv sync --locked --extra gemini --extra mistral
+cp .env.example .env  # fill keys locally
+uv run --env-file .env ocr-gauntlet data/cord-region/manifest.json \
+  --engines gemini mistral --allow-remote --output results/hosted.jsonl
+```
 
-- 📖 [The Definitive Guide to OCR in 2026: From Pipelines to VLMs](https://slavadubrov.github.io/blog/2026/03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/)
-- 🏟️ [OCR Arena](https://ocrarena.ai) — independent crowd-sourced rankings
-- 🔧 Built with [uv](https://docs.astral.sh/uv/)
+`--allow-remote` explicitly enables document uploads and possible spend **only for
+selected engines**. It is also required for dots.ocr, whose endpoint can be remote.
+The notebooks default to local/offline operation. `.env` is loaded only with the
+shown `uv run --env-file` command; restart the Jupyter process with that command
+when changing its environment. Never commit keys or raw private documents.
 
-## Data Sources
+Gemini defaults to **`gemini-3.8-flash`**, verified against [Google's model
+card](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash) on 2026-09-06.
+Mistral defaults to [`mistral-ocr-4-1`](https://docs.mistral.ai/models/ocr-4-1).
+Neither is declared an OCR winner. Request/response IDs, returned model versions,
+usage and dated estimated pricing remain attached to each result. Unknown usage
+is not free. Thinking tokens count toward Gemini output cost.
 
-Sample documents are downloaded at runtime from public HuggingFace datasets:
+Use a JSON settings file to vary real adapter options:
 
-| Sample | Source | License |
-|--------|--------|---------|
-| Printed form | [nielsr/funsd](https://huggingface.co/datasets/nielsr/funsd) | Non-commercial research |
-| Receipt | [naver-clova-ix/cord-v2](https://huggingface.co/datasets/naver-clova-ix/cord-v2) | CORD — research use |
-| Handwriting | [Teklia/IAM-line](https://huggingface.co/datasets/Teklia/IAM-line) | Non-commercial research |
-| Dense form | [nielsr/funsd](https://huggingface.co/datasets/nielsr/funsd) | Non-commercial research |
-| Noisy form | [nielsr/funsd](https://huggingface.co/datasets/nielsr/funsd) | Non-commercial research |
+```json
+{
+  "tesseract": {"lang": "eng", "psm": 6},
+  "gemini": {"model": "gemini-3.8-flash", "media_resolution": "high"}
+}
+```
 
-No dataset content is included in this repository.
+Pass `--settings settings.json` with exactly those engines selected. No settings
+are silently ignored. For two configurations of one engine, create two separate
+runs and compare their identical manifest hashes. See [runtime details](docs/evaluation.md#runtime-and-model-identity)
+for the dots.ocr deployment contract and historical model limitations.
 
-## License
+## Read the results
 
-Apache-2.0
+Every planned pair gets a JSONL row: success/error/skipped, reason, hashes, raw
+text/native output, configuration, timing, usage and known/unknown cost.
+The CLI prints a summary from these records:
+
+- **Completion and scoring coverage first.** Unavailable/truncated/failed pages stay visible.
+- **Corpus CER/WER** apply only to compatible reviewed references. Case, numbers
+  and punctuation are preserved; whitespace is collapsed and Unicode is NFC.
+- **All-planned text quality** gives failed/skipped/unscored pages zero contribution.
+  Compare it only on identical inputs and the same output contract.
+- **Fields, table cells and reading order** are separate tasks. Unsupported outputs
+  are explicit. No Markdown stripping or field guessing is used to manufacture a score.
+  Docling can explicitly project native blocks and table cells with
+  `{"docling-tesseract": {"output_format": "text"}}`; raw Markdown remains saved.
+- **Cost per success** includes known failed spend. Any unknown attempted spend
+  makes the overall cost per success unknown. Local zero means API fee only.
+
+| Notebook | Purpose |
+|---|---|
+| `01_gauntlet.ipynb` | Shared runner, completion, conditional heatmap, raw outputs |
+| `02_docling_deep_dive.ipynb` | Explicit pipeline selection, cold/warm timing, tables and coordinates |
+| `03_cost_calculator.ipynb` | Hypothetical capacity/retries/review costs; critical-field/order counterexamples |
+
+The previous notebooks contained invalid labels/rankings. Their original content
+remains in Git at `deb94ebd747f0e7cc14b523ac3d0ad19032f855a`; current notebooks have
+no historical outputs relabeled as new measurements.
+
+Code license: Apache-2.0. Dataset/model licenses are separate; no downloaded dataset
+content is distributed in the repository.
