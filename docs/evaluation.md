@@ -87,9 +87,7 @@ optional `fields`, `table` and `reading_order` declare additional targets.
 Markdown conversion output is retained as Markdown and needs a Markdown reference
 for text comparison. Docling optionally supports `output_format="text"`: native
 ordered text blocks and row-major table cells, with merged cells repeated. This
-projection is declared in metadata and preserves raw Markdown/JSON. The currently
-installed native `export_to_text()` ignores its deprecated strict-text option, so
-the adapter does not use it. The scorer never strips syntax with a regex.
+projection is declared in metadata and preserves raw Markdown/JSON. The scorer never strips syntax with a regex.
 Docling exposes a single detected table as a cell grid for direct table scoring;
 multiple tables require independent matching and remain native outputs. Docling
 JSON/tables and Paddle native blocks remain available for independently matched
@@ -106,8 +104,8 @@ from providers require calibration on a separate held-out set before auto-accept
 Docling standard OCR options belong to `PdfPipelineOptions`, installed on both
 image/PDF format options. The VLM path uses `VlmPipeline` and an explicit
 Granite-Docling model/revision. Constructors are tested against installed Docling
-without downloading weights. Tesseract, PaddleOCR and the standard Docling pipeline
-were also exercised locally; other optional inference paths need deployment-specific checks.
+without downloading weights. Tesseract, PaddleOCR, and standard Docling run locally
+without extra services; the other adapters need their own deployment or API key.
 Converters are initialized once and cached; `init_ms` records model startup,
 `latency_ms` conversion plus export. Cache hits have zero initialization time.
 This demo runs sequentially; GPU throughput needs a separate concurrency study.
@@ -152,5 +150,4 @@ review fraction. `$0.50 × 24 × 30 = $360` before other costs.
 Use `uv sync --locked`, preserve the manifest and JSONL, and record the Git diff
 when `git_dirty=true`. Publish a fresh run only with its actual IDs and settings.
 No automatic cloud upload happens in tests. Raw outputs can contain document text;
-keep private results local. The old misleading notebook outputs remain only in
-Git history and are not reused as measured evidence.
+keep private results local.

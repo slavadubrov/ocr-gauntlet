@@ -4,7 +4,7 @@ Compare OCR **pipelines and their output contracts** on the same reviewed inputs
 Tesseract, PaddleOCR, Docling with Tesseract/EasyOCR/Granite, dots.ocr,
 Mistral OCR and Gemini are optional adapters. Failures remain in the results.
 
-Companion to [OCR in 2026](https://slavadubrov.com/blog/2026/03/04/the-definitive-guide-to-ocr-in-2026-from-pipelines-to-vlms/).
+Companion to [OCR in 2026](https://slavadubrov.com/blog/2026/03/04/ocr-guide/).
 This is an instructional evaluation project, not a validated model leaderboard.
 
 ## Start locally
@@ -37,7 +37,7 @@ licenses and image/reference hashes. It does not run OCR or upload documents.
 ```sh
 uv sync --locked --extra datasets --extra tesseract
 uv run python scripts/download_samples.py --dataset cord --count 2 --output data/cord
-# Reproduce the visually reviewed receipt region used during implementation:
+# Prepare the reviewed receipt region:
 uv run python scripts/prepare_reviewed_cord.py data/cord/manifest.json data/cord-region
 uv run ocr-gauntlet data/cord-region/manifest.json --engines tesseract --output results/cord.jsonl
 ```
@@ -128,10 +128,6 @@ The CLI prints a summary from these records:
 | `01_gauntlet.ipynb` | Shared runner, completion, conditional heatmap, raw outputs |
 | `02_docling_deep_dive.ipynb` | Explicit pipeline selection, cold/warm timing, tables and coordinates |
 | `03_cost_calculator.ipynb` | Hypothetical capacity/retries/review costs; critical-field/order counterexamples |
-
-The previous notebooks contained invalid labels/rankings. Their original content
-remains in Git at `deb94ebd747f0e7cc14b523ac3d0ad19032f855a`; current notebooks have
-no historical outputs relabeled as new measurements.
 
 Code license: Apache-2.0. Dataset/model licenses are separate; no downloaded dataset
 content is distributed in the repository.
